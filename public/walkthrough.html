@@ -1,0 +1,110 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent SDK LESSON 03 · Explain the &lt;em&gt;code steps.&lt;/em&gt;</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/code-highlighting.css"></head><body><main><div class="brand"><a href="/">How <span>Claude Agent SDK</span> Works</a><span class="badge">LESSON 03 / BUG-FIXING AGENT</span></div><header class="hero"><div><div class="eyebrow">READ · DIAGNOSE · EDIT · VERIFY</div><h1>Explain the <em>code steps.</em></h1><p class="lead">Read actual Python and TypeScript snippets, from the original bugs to regression evidence.</p></div><img src="/astronaut.png" alt="Course astronaut mascot"></header><nav class="nav" aria-label="Application sections"><a href="/">Application lab</a><a href="/learn.html">What you will learn</a><a href="/run.html">How to run</a><a href="/architecture.html">Architecture & workflow</a><a href="/walkthrough.html" aria-current="page">Code walkthrough</a><button id="theme" type="button">Dark mode</button></nav><section class="note">Start with the unchanged fixture, then connect the SDK options, streamed messages and independent Python checks. Every excerpt is labelled with its source file.</section><section class="step"><span class="number">01</span><h2>Start with the two crash bugs</h2><p>This is the presentation’s exact starting file. The normal calls work; the empty-list and None-user cases crash. The fixture stays unchanged while each run resets a separate working copy.</p><p class="source">Source: fixtures/utils.py</p><pre><code class="language-python">def calculate_average(numbers):
+    total = 0
+    for num in numbers:
+        total += num
+    return total / len(numbers)
+
+
+def get_user_name(user):
+    return user[&quot;name&quot;].upper()
+</code></pre></section><section class="step"><span class="number">02</span><h2>Reset only the disposable working copy</h2><p>Every submitted run copies the buggy fixture to .runtime/bugfix-workspace/utils.py. The app never replaces its fixture with a prewritten fix. This makes classroom repetitions comparable.</p><p class="source">Source: src/agent.ts</p><pre><code class="language-typescript">export async function ensureWorkspace(reset = false) {
+  await mkdir(WORKSPACE, { recursive: true });
+  if (reset) await writeFile(TARGET, await readFile(FIXTURE));
+  else { try { await access(TARGET); } catch { await writeFile(TARGET, await readFile(FIXTURE)); } }
+}</code></pre></section><section class="step"><span class="number">03</span><h2>Choose tools and edit approvals</h2><p>tools sets availability; allowedTools sets automatic approvals. acceptEdits is the lesson’s edit permission mode. Additional path checks limit this host’s file operations to the one demo target. No Bash or external search is enabled.</p><p class="source">Source: src/agent.ts</p><pre><code class="language-typescript">export function lessonOptions(abortController = new AbortController()): Options {
+  return {
+    model: MODEL, cwd: WORKSPACE,
+    tools: [&quot;Read&quot;, &quot;Edit&quot;, &quot;Glob&quot;],
+    allowedTools: [&quot;Read&quot;, &quot;Edit&quot;, &quot;Glob&quot;],
+    permissionMode: &quot;acceptEdits&quot;,
+    systemPrompt: &quot;You are a careful Python developer. Inspect and repair only utils.py in the current directory. Contract: calculate_average([]) returns 0; calculate_average([2,4,6]) returns 4; get_user_name(None) returns an empty string; get_user_name({&#x27;name&#x27;:&#x27;Ada&#x27;}) returns &#x27;ADA&#x27;. Preserve public function names. Make minimal defensive edits using Edit. No shell is available; do not claim you ran tests. The host verifies the file afterwards. Keep the final summary brief.&quot;,
+    hooks: { PreToolUse: [{ hooks: [async (input) =&gt; {
+      if (input.hook_event_name !== &quot;PreToolUse&quot;) return {};
+      if (toolPathAllowed(input.tool_name, input.tool_input as Record&lt;string, unknown&gt;)) return {};
+      return { hookSpecificOutput: { hookEventName: &quot;PreToolUse&quot;, permissionDecision: &quot;deny&quot;, permissionDecisionReason: &quot;This lesson permits only Read/Edit on its utils.py and Glob in the demo directory.&quot; } };
+    }] }] },
+    settingSources: [], mcpServers: {}, plugins: [], persistSession: false,
+    maxTurns: 12, maxBudgetUsd: 0.50, abortController,
+  };
+}</code></pre></section><section class="step"><span class="number">04</span><h2>Call query and consume its messages</h2><p>One query object can contain repeated model/tool interactions. The host forwards selected evidence and waits for a final result; finally closes the query and reads the resulting file.</p><p class="source">Source: src/agent.ts</p><pre><code class="language-typescript">export async function runAgent(prompt: string, emit: (event: LabEvent) =&gt; void, abortController = new AbortController()) {
+  const before = await workspaceState(true);
+  if (!before.checks.available) throw new Error(before.checks.error);
+  emit({ type: &quot;workspace&quot;, stage: &quot;before&quot;, ...before, changed: false });
+  emit({ type: &quot;started&quot;, text: &quot;One query: inspect utils.py, repair its bugs, then verify the actual file.&quot; });
+  let gotResult = false;
+  const conversation = query({ prompt, options: lessonOptions(abortController) });
+  try {
+    for await (const message of conversation) {
+      for (const event of projectMessage(message)) {
+        if (event.type === &quot;result&quot;) gotResult = true;
+        emit(event);
+      }
+    }
+    if (!gotResult &amp;&amp; !abortController.signal.aborted) throw new Error(&quot;The SDK ended without a result message.&quot;);
+  } finally {
+    conversation.close();
+    const after = await workspaceState();
+    emit({ type: &quot;workspace&quot;, stage: &quot;after&quot;, ...after, changed: after.source !== before.source });
+  }
+}</code></pre></section><section class="step"><span class="number">05</span><h2>Separate assistant text from the final result</h2><p>Assistant messages can contain text and tool requests. A successful final outcome requires success subtype with no error flag. A tool request alone is not proof that an edit was applied.</p><p class="source">Source: src/agent.ts</p><pre><code class="language-typescript">export function projectMessage(message: SDKMessage): LabEvent[] {
+  if (message.type === &quot;system&quot; &amp;&amp; message.subtype === &quot;init&quot;) return [{ type: &quot;initialized&quot;, model: message.model, tools: message.tools.length }];
+  if (message.type === &quot;assistant&quot;) {
+    const events: LabEvent[] = [];
+    for (const block of message.message.content) {
+      if (block.type === &quot;text&quot;) events.push({ type: &quot;answer&quot;, text: block.text });
+      if (block.type === &quot;tool_use&quot;) {
+        const input = block.input as { pattern?: string; file_path?: string };
+        events.push({ type: &quot;tool&quot;, name: block.name, pattern: input.file_path ? basename(input.file_path) : input.pattern || &quot;&quot; });
+      }
+    }
+    return events;
+  }
+  if (message.type === &quot;result&quot;) {
+    const success = message.subtype === &quot;success&quot; &amp;&amp; !message.is_error;
+    return [{ type: &quot;result&quot;, status: success ? &quot;success&quot; : message.subtype === &quot;success&quot; ? &quot;error&quot; : message.subtype,
+      text: message.subtype === &quot;success&quot; ? message.result : message.errors.join(&quot;\n&quot;), sessionId: message.session_id, costUsd: message.total_cost_usd, turns: message.num_turns }];
+  }
+  return [];
+}</code></pre></section><section class="step"><span class="number">06</span><h2>Run independent Python regression checks</h2><p>The test runner lives outside the agent working directory. It checks two ordinary calls and the two edge cases. This app chooses 0 for an empty average and an empty string for a missing user; those are explicit classroom contracts, not the only possible API design.</p><p class="source">Source: scripts/verify-utils.py</p><pre><code class="language-python">&quot;&quot;&quot;Trusted host regression checks; lives outside the agent working directory.&quot;&quot;&quot;
+import contextlib,importlib.util,io,json,sys
+
+cases=[]
+with contextlib.redirect_stdout(io.StringIO()):
+ try:
+  spec=importlib.util.spec_from_file_location(&#x27;student_utils&#x27;,sys.argv[1])
+  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  tests=[(&#x27;Average: ordinary list&#x27;,&#x27;calculate_average&#x27;,[2,4,6],4),
+         (&#x27;Average: empty list&#x27;,&#x27;calculate_average&#x27;,[],0),
+         (&#x27;Name: ordinary user&#x27;,&#x27;get_user_name&#x27;,{&#x27;name&#x27;:&#x27;Ada&#x27;},&#x27;ADA&#x27;),
+         (&#x27;Name: missing user&#x27;,&#x27;get_user_name&#x27;,None,&#x27;&#x27;)]
+  for label,name,arg,expected in tests:
+   try:
+    actual=getattr(module,name)(arg)
+    cases.append(dict(label=label,expected=expected,actual=actual,passed=actual==expected))
+   except Exception as error:
+    cases.append(dict(label=label,expected=expected,error=type(error).__name__,passed=False))
+ except Exception as error:
+  cases=[dict(label=&#x27;Import repaired utils.py&#x27;,expected=&#x27;valid Python module&#x27;,error=type(error).__name__,passed=False)]
+print(json.dumps(dict(available=True,passed=sum(c[&#x27;passed&#x27;] for c in cases),total=4,cases=cases),default=str))
+</code></pre></section><section class="step"><span class="number">07</span><h2>Print tool activity and verification evidence</h2><p>The terminal prints SDK progress and the independent check count. It exits unsuccessfully if the file did not change or the post-run checks did not all pass. The web page shows both kinds of evidence separately.</p><p class="source">Source: src/sample.ts</p><pre><code class="language-typescript">import { DEFAULT_PROMPT, runAgent } from &quot;./agent.js&quot;;
+
+if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.startsWith(&quot;your_&quot;)) {
+  console.error(&quot;Set ANTHROPIC_API_KEY in this shell first, or use npm run sample:env.&quot;);
+  process.exit(1);
+}
+await runAgent(DEFAULT_PROMPT, (event) =&gt; {
+  if (event.type === &quot;tool&quot;) console.log(`Tool: ${event.name} · ${event.pattern}`);
+  if (event.type === &quot;answer&quot;) console.log(event.text);
+  if (event.type === &quot;result&quot;) {
+    console.log(`SDK: ${event.status} · Turns: ${event.turns}`);
+    if (event.status !== &quot;success&quot;) process.exitCode = 1;
+  }
+  if (event.type === &quot;workspace&quot;) {
+    console.log(`${event.stage}: ${event.checks.passed}/${event.checks.total} checks passed`);
+    if (event.stage === &quot;after&quot;) {
+      console.log(`File changed: ${event.changed}`);
+      if (!event.changed || !event.checks.available || event.checks.passed !== event.checks.total) process.exitCode = 1;
+    }
+  }
+});
+</code></pre></section><div class="actions"><a class="button" href="/architecture.html">← UML sequence</a><a class="button" href="/">Run the repair →</a></div><footer>CLAUDE AGENT SDK · LESSON 03 · READ THE CODE · FIX THE BUGS · VERIFY THE RESULT<br>TypeScript · local runtime · API key stays on the server</footer></main><script src="/navigation.js"></script><script src="/prism.js"></script><script src="/prism-python.min.js"></script><script src="/code-highlighting.js"></script></body></html>

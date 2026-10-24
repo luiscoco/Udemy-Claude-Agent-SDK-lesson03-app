@@ -1,0 +1,9 @@
+{
+  "src/agent.ts": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d",
+  "src/sample.ts": "b9b83e0eab1086348b8a3cf7a3011eb107ed102b59348c279cf09ecc855e74bc",
+  "src/server.ts": "73633ae0f79030efea4bce70546348c5932a3901332e2784963a2a73147999e8",
+  "src/client.ts": "0cf377e130a30f44aa8d7c10545cd99f26fe9cba69fc1d78720ff86bdf916cfa",
+  "scripts/verify-utils.py": "1b27c2ac1cf8d9fd0388eb4f5f63055f4fba163c77c1a5ae7fc94d2ba94c890a",
+  "fixtures/utils.py": "c29fde59b52cc1ee333382b6b216462a0271f37a455550052f0c1414b4d72fa5",
+  "package.json": "478ba21df1fa5bb35acdd1c2ccfbb94536112aca6fc6d513213f1420cd43e8b2"
+}

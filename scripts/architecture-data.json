@@ -1,0 +1,76 @@
+{
+  "lanes": [
+    "Student",
+    "Browser + host",
+    "Agent SDK",
+    "Claude API",
+    "utils.py"
+  ],
+  "arrows": [
+    [
+      0,
+      1,
+      "1. Request the repair"
+    ],
+    [
+      1,
+      4,
+      "2. Reset buggy copy; run baseline checks"
+    ],
+    [
+      1,
+      2,
+      "3. query(prompt, edit options)"
+    ],
+    [
+      2,
+      3,
+      "4. Send task and tool definitions"
+    ],
+    [
+      3,
+      2,
+      "5. Request Read or Glob"
+    ],
+    [
+      2,
+      4,
+      "6. Read the actual Python file"
+    ],
+    [
+      2,
+      3,
+      "7. Return file observations to Claude"
+    ],
+    [
+      3,
+      2,
+      "8. Request Edit for a crash bug"
+    ],
+    [
+      2,
+      4,
+      "9. Apply the permitted edit"
+    ],
+    [
+      3,
+      2,
+      "10. Finish the SDK turn sequence"
+    ],
+    [
+      2,
+      1,
+      "11. Yield text and final SDK result"
+    ],
+    [
+      1,
+      4,
+      "12. Read repaired file; run Python checks"
+    ],
+    [
+      1,
+      0,
+      "13. Show before/after and verified outcome"
+    ]
+  ]
+}

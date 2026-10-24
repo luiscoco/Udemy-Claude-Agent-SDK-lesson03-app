@@ -1,0 +1,58 @@
+[
+  {
+    "number": "01",
+    "title": "Start with the two crash bugs",
+    "source": "fixtures/utils.py",
+    "explanation": "This is the presentation\u2019s exact starting file. The normal calls work; the empty-list and None-user cases crash. The fixture stays unchanged while each run resets a separate working copy.",
+    "code": "def calculate_average(numbers):\n    total = 0\n    for num in numbers:\n        total += num\n    return total / len(numbers)\n\n\ndef get_user_name(user):\n    return user[\"name\"].upper()\n",
+    "language": "python"
+  },
+  {
+    "number": "02",
+    "title": "Reset only the disposable working copy",
+    "source": "src/agent.ts",
+    "explanation": "Every submitted run copies the buggy fixture to .runtime/bugfix-workspace/utils.py. The app never replaces its fixture with a prewritten fix. This makes classroom repetitions comparable.",
+    "code": "export async function ensureWorkspace(reset = false) {\n  await mkdir(WORKSPACE, { recursive: true });\n  if (reset) await writeFile(TARGET, await readFile(FIXTURE));\n  else { try { await access(TARGET); } catch { await writeFile(TARGET, await readFile(FIXTURE)); } }\n}",
+    "language": "typescript"
+  },
+  {
+    "number": "03",
+    "title": "Choose tools and edit approvals",
+    "source": "src/agent.ts",
+    "explanation": "tools sets availability; allowedTools sets automatic approvals. acceptEdits is the lesson\u2019s edit permission mode. Additional path checks limit this host\u2019s file operations to the one demo target. No Bash or external search is enabled.",
+    "code": "export function lessonOptions(abortController = new AbortController()): Options {\n  return {\n    model: MODEL, cwd: WORKSPACE,\n    tools: [\"Read\", \"Edit\", \"Glob\"],\n    allowedTools: [\"Read\", \"Edit\", \"Glob\"],\n    permissionMode: \"acceptEdits\",\n    systemPrompt: \"You are a careful Python developer. Inspect and repair only utils.py in the current directory. Contract: calculate_average([]) returns 0; calculate_average([2,4,6]) returns 4; get_user_name(None) returns an empty string; get_user_name({'name':'Ada'}) returns 'ADA'. Preserve public function names. Make minimal defensive edits using Edit. No shell is available; do not claim you ran tests. The host verifies the file afterwards. Keep the final summary brief.\",\n    hooks: { PreToolUse: [{ hooks: [async (input) => {\n      if (input.hook_event_name !== \"PreToolUse\") return {};\n      if (toolPathAllowed(input.tool_name, input.tool_input as Record<string, unknown>)) return {};\n      return { hookSpecificOutput: { hookEventName: \"PreToolUse\", permissionDecision: \"deny\", permissionDecisionReason: \"This lesson permits only Read/Edit on its utils.py and Glob in the demo directory.\" } };\n    }] }] },\n    settingSources: [], mcpServers: {}, plugins: [], persistSession: false,\n    maxTurns: 12, maxBudgetUsd: 0.50, abortController,\n  };\n}",
+    "language": "typescript"
+  },
+  {
+    "number": "04",
+    "title": "Call query and consume its messages",
+    "source": "src/agent.ts",
+    "explanation": "One query object can contain repeated model/tool interactions. The host forwards selected evidence and waits for a final result; finally closes the query and reads the resulting file.",
+    "code": "export async function runAgent(prompt: string, emit: (event: LabEvent) => void, abortController = new AbortController()) {\n  const before = await workspaceState(true);\n  if (!before.checks.available) throw new Error(before.checks.error);\n  emit({ type: \"workspace\", stage: \"before\", ...before, changed: false });\n  emit({ type: \"started\", text: \"One query: inspect utils.py, repair its bugs, then verify the actual file.\" });\n  let gotResult = false;\n  const conversation = query({ prompt, options: lessonOptions(abortController) });\n  try {\n    for await (const message of conversation) {\n      for (const event of projectMessage(message)) {\n        if (event.type === \"result\") gotResult = true;\n        emit(event);\n      }\n    }\n    if (!gotResult && !abortController.signal.aborted) throw new Error(\"The SDK ended without a result message.\");\n  } finally {\n    conversation.close();\n    const after = await workspaceState();\n    emit({ type: \"workspace\", stage: \"after\", ...after, changed: after.source !== before.source });\n  }\n}",
+    "language": "typescript"
+  },
+  {
+    "number": "05",
+    "title": "Separate assistant text from the final result",
+    "source": "src/agent.ts",
+    "explanation": "Assistant messages can contain text and tool requests. A successful final outcome requires success subtype with no error flag. A tool request alone is not proof that an edit was applied.",
+    "code": "export function projectMessage(message: SDKMessage): LabEvent[] {\n  if (message.type === \"system\" && message.subtype === \"init\") return [{ type: \"initialized\", model: message.model, tools: message.tools.length }];\n  if (message.type === \"assistant\") {\n    const events: LabEvent[] = [];\n    for (const block of message.message.content) {\n      if (block.type === \"text\") events.push({ type: \"answer\", text: block.text });\n      if (block.type === \"tool_use\") {\n        const input = block.input as { pattern?: string; file_path?: string };\n        events.push({ type: \"tool\", name: block.name, pattern: input.file_path ? basename(input.file_path) : input.pattern || \"\" });\n      }\n    }\n    return events;\n  }\n  if (message.type === \"result\") {\n    const success = message.subtype === \"success\" && !message.is_error;\n    return [{ type: \"result\", status: success ? \"success\" : message.subtype === \"success\" ? \"error\" : message.subtype,\n      text: message.subtype === \"success\" ? message.result : message.errors.join(\"\\n\"), sessionId: message.session_id, costUsd: message.total_cost_usd, turns: message.num_turns }];\n  }\n  return [];\n}",
+    "language": "typescript"
+  },
+  {
+    "number": "06",
+    "title": "Run independent Python regression checks",
+    "source": "scripts/verify-utils.py",
+    "explanation": "The test runner lives outside the agent working directory. It checks two ordinary calls and the two edge cases. This app chooses 0 for an empty average and an empty string for a missing user; those are explicit classroom contracts, not the only possible API design.",
+    "code": "\"\"\"Trusted host regression checks; lives outside the agent working directory.\"\"\"\nimport contextlib,importlib.util,io,json,sys\n\ncases=[]\nwith contextlib.redirect_stdout(io.StringIO()):\n try:\n  spec=importlib.util.spec_from_file_location('student_utils',sys.argv[1])\n  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)\n  tests=[('Average: ordinary list','calculate_average',[2,4,6],4),\n         ('Average: empty list','calculate_average',[],0),\n         ('Name: ordinary user','get_user_name',{'name':'Ada'},'ADA'),\n         ('Name: missing user','get_user_name',None,'')]\n  for label,name,arg,expected in tests:\n   try:\n    actual=getattr(module,name)(arg)\n    cases.append(dict(label=label,expected=expected,actual=actual,passed=actual==expected))\n   except Exception as error:\n    cases.append(dict(label=label,expected=expected,error=type(error).__name__,passed=False))\n except Exception as error:\n  cases=[dict(label='Import repaired utils.py',expected='valid Python module',error=type(error).__name__,passed=False)]\nprint(json.dumps(dict(available=True,passed=sum(c['passed'] for c in cases),total=4,cases=cases),default=str))\n",
+    "language": "python"
+  },
+  {
+    "number": "07",
+    "title": "Print tool activity and verification evidence",
+    "source": "src/sample.ts",
+    "explanation": "The terminal prints SDK progress and the independent check count. It exits unsuccessfully if the file did not change or the post-run checks did not all pass. The web page shows both kinds of evidence separately.",
+    "code": "import { DEFAULT_PROMPT, runAgent } from \"./agent.js\";\n\nif (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.startsWith(\"your_\")) {\n  console.error(\"Set ANTHROPIC_API_KEY in this shell first, or use npm run sample:env.\");\n  process.exit(1);\n}\nawait runAgent(DEFAULT_PROMPT, (event) => {\n  if (event.type === \"tool\") console.log(`Tool: ${event.name} \u00b7 ${event.pattern}`);\n  if (event.type === \"answer\") console.log(event.text);\n  if (event.type === \"result\") {\n    console.log(`SDK: ${event.status} \u00b7 Turns: ${event.turns}`);\n    if (event.status !== \"success\") process.exitCode = 1;\n  }\n  if (event.type === \"workspace\") {\n    console.log(`${event.stage}: ${event.checks.passed}/${event.checks.total} checks passed`);\n    if (event.stage === \"after\") {\n      console.log(`File changed: ${event.changed}`);\n      if (!event.changed || !event.checks.available || event.checks.passed !== event.checks.total) process.exitCode = 1;\n    }\n  }\n});\n",
+    "language": "typescript"
+  }
+]

@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent SDK LESSON 03 · Configure, run and &lt;em&gt;verify.&lt;/em&gt;</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/code-highlighting.css"></head><body><main><div class="brand"><a href="/">How <span>Claude Agent SDK</span> Works</a><span class="badge">LESSON 03 / BUG-FIXING AGENT</span></div><header class="hero"><div><div class="eyebrow">READ · DIAGNOSE · EDIT · VERIFY</div><h1>Configure, run and <em>verify.</em></h1><p class="lead">Follow the presentation’s six-step quickstart and inspect an actual file repair.</p></div><img src="/astronaut.png" alt="Course astronaut mascot"></header><nav class="nav" aria-label="Application sections"><a href="/">Application lab</a><a href="/learn.html">What you will learn</a><a href="/run.html" aria-current="page">How to run</a><a href="/architecture.html">Architecture & workflow</a><a href="/walkthrough.html">Code walkthrough</a><button id="theme" type="button">Dark mode</button></nav><section class="step"><span class="number">01</span><h2>Set up the project and install dependencies</h2><p>Use Node.js 24+ for this application, npm, Python 3.10+ for host checks, and an Anthropic API key. Git Bash may be required by the SDK on Windows. Keep optional npm dependencies enabled for the bundled runtime.</p><pre><code class="language-powershell">node --version
+python --version</code></pre><p>Clone the completed application:</p><pre><code class="language-powershell">git clone https://github.com/luiscoco/Udemy-Claude-Agent-SDK-lesson03-app.git
+cd .\Udemy-Claude-Agent-SDK-lesson03-app
+npm ci</code></pre><p>In the original presentations workspace, use <code>cd .\agent-sdk\lesson03-bug-fixing</code> and <code>npm ci</code>. The presentation’s from-scratch TypeScript setup is:</p><pre><code class="language-powershell">mkdir my-agent
+cd my-agent
+npm init -y
+npm pkg set type=module
+npm install @anthropic-ai/claude-agent-sdk
+npm install --save-dev tsx</code></pre></section><section class="step"><span class="number">02</span><h2>Set your API key in the same shell</h2><p>Replace the safe placeholder locally, then run the sample from that PowerShell terminal:</p><pre><code class="language-powershell">$env:ANTHROPIC_API_KEY = &quot;your_api_key&quot;
+npm run sample</code></pre><p>On macOS/Linux, use <code>export ANTHROPIC_API_KEY="your_api_key"</code> before <code>npm run sample</code>. The sample reads the process environment, not an automatic .env file. A new terminal needs its own assignment.</p><p>Optional explicit file loading:</p><pre><code class="language-powershell">if (!(Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
+npm run sample:env</code></pre><pre><code class="language-dotenv">ANTHROPIC_API_KEY=your_api_key
+CLAUDE_MODEL=claude-sonnet-4-6
+PORT=3103
+PYTHON_BIN=python</code></pre><p>A key already set in the shell takes precedence. Restart the web host after editing configuration. If Python is not called <code>python</code>, set PYTHON_BIN to its executable. On Windows, if needed, set <code>CLAUDE_CODE_GIT_BASH_PATH=C:/Program Files/Git/bin/bash.exe</code>.</p></section><section class="step"><span class="number">03</span><h2>Create and understand the buggy file</h2><pre><code class="language-python">def calculate_average(numbers):
+    total = 0
+    for num in numbers:
+        total += num
+    return total / len(numbers)
+
+
+def get_user_name(user):
+    return user[&quot;name&quot;].upper()
+</code></pre><p>The fixture remains in <code>fixtures/utils.py</code>. Each run restores a disposable copy in <code>.runtime/bugfix-workspace/utils.py</code>. Initially, two normal checks pass and two edge cases fail with ZeroDivisionError and TypeError. The repaired file remains available locally after the run, until the next reset.</p></section><section class="step"><span class="number">04</span><h2>Write the agent options and run it</h2><pre><code class="language-typescript">const conversation = query({
+  prompt: &quot;Review utils.py for bugs that would cause crashes. Fix any issues you find.&quot;,
+  options: {
+    cwd: WORKSPACE,
+    tools: [&quot;Read&quot;, &quot;Edit&quot;, &quot;Glob&quot;],
+    allowedTools: [&quot;Read&quot;, &quot;Edit&quot;, &quot;Glob&quot;],
+    permissionMode: &quot;acceptEdits&quot;,
+  },
+});</code></pre><p>This short illustration shows the core options; the complete source adds the explicit contract, reset, path guard, limits and independent checks.</p><pre><code class="language-powershell">npm run sample:env
+# Web alternative:
+npm start
+# Open http://127.0.0.1:3103</code></pre><p>Keep the web terminal open. Starting it makes no model call. Each submitted repair uses the API and may incur charges. Stop it with Ctrl+C.</p></section><section class="step"><span class="number">05</span><h2>Inspect the evidence</h2><ol><li>Confirm the default repair prompt and 2/4 baseline checks.</li><li>Click Fix utils.py once.</li><li>Observe Read and Edit requests; Glob may be used too.</li><li>Wait for the final SDK outcome and the host verification event.</li><li>Compare before/after code and confirm 4/4 checks plus a changed file.</li></ol><p>A successful SDK result with failing host checks is not a verified fix. The host test runner is outside the agent workspace and is never supplied as an editable target.</p></section><section class="step"><span class="number">06</span><h2>Customise and practise</h2><p>Try docstrings or type hints while preserving the four behaviour checks. A read-only experiment removes Edit from tools and changes the prompt to a bug report; its file should remain unchanged, so the UI should not claim a verified repair. The slides also discuss Bash and WebSearch as future extensions. They are not enabled in this app; adding them requires updating both the tool set and the local guard deliberately.</p><pre><code class="language-powershell">npm test
+npm run build:client
+python scripts/build-pages.py</code></pre><p>If Python checks are unavailable, fix Python/PYTHON_BIN before spending an API call. If a runtime or Git Bash error occurs, keep optional dependencies installed and verify the Git Bash path. If this app already owns port 3103, a second start prints its URL; otherwise stop the other service or choose another PORT.</p></section><div class="actions"><a class="button" href="/learn.html">← Learning goals</a><a class="button" href="/">Open the repair lab →</a></div><footer>CLAUDE AGENT SDK · LESSON 03 · READ THE CODE · FIX THE BUGS · VERIFY THE RESULT<br>TypeScript · local runtime · API key stays on the server</footer></main><script src="/navigation.js"></script><script src="/prism.js"></script><script src="/prism-python.min.js"></script><script src="/code-highlighting.js"></script></body></html>
