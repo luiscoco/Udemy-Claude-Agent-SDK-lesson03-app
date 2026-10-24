@@ -1,0 +1,78 @@
+[
+  {
+    "source": "src/agent.ts",
+    "explanation": "The default prompt names the Python target and asks for crash fixes. The same task appears in the lab before the user runs it.",
+    "start": "export const DEFAULT_PROMPT ="
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "workspaceState(true) restores the disposable buggy copy and runs baseline checks. The host emits this actual source and its check results before invoking the SDK.",
+    "start": "  const before = await workspaceState(true);",
+    "end": "  emit({ type: \"started\""
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "One query receives the repair task and edit options. Read, Edit, Glob and acceptEdits are configured in lessonOptions rather than a manual tool loop.",
+    "start": "  const conversation = query({ prompt, options: lessonOptions(abortController) });"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "These option properties supply the task environment and tool definitions to the SDK. Claude API transport is performed internally by the SDK.",
+    "start": "    model: MODEL, cwd: WORKSPACE,",
+    "end": "    systemPrompt:"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "Actual assistant tool_use blocks are projected into tool events. The tool name and safe filename/pattern come from the observed request, not a fixed replay.",
+    "start": "      if (block.type === \"tool_use\") {",
+    "end": "    }\n    return events;"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "The path guard permits Read and Edit only on the disposable target. The SDK executes the built-in Read operation; this excerpt shows the application guard around it.",
+    "start": "  if (name === \"Read\" || name === \"Edit\") {",
+    "end": "  if (name === \"Glob\")"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "The SDK sends tool observations to Claude internally. The host continues consuming the same conversation and only emits its chosen projection; it has no custom tool-result sender.",
+    "start": "    for await (const message of conversation) {",
+    "end": "    if (!gotResult"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "An Edit request is observed through this tool_use branch just like a Read request. The actual tool name determines what happened; the app does not invent an Edit response.",
+    "start": "      if (block.type === \"tool_use\") {",
+    "end": "    }\n    return events;"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "The pre-tool hook accepts calls that pass toolPathAllowed and denies other targets. The SDK applies permitted edits to the working copy; the immutable fixture is not edited.",
+    "start": "      if (input.hook_event_name !== \"PreToolUse\") return {};",
+    "end": "    }] }] },"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "The host drains the same SDK iterator while the model can repeat inspections and edits. The final-result flag and completion check distinguish a finished run from missing evidence.",
+    "start": "    for await (const message of conversation) {",
+    "end": "  } finally"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "The result projection checks both subtype and is_error, preserves error variants, and exposes the actual session, estimated cost and turn count.",
+    "start": "  if (message.type === \"result\") {",
+    "end": "  return [];"
+  },
+  {
+    "source": "src/agent.ts",
+    "explanation": "After closing the SDK query, the host reads the resulting file and runs independent checks through workspaceState(). The after event records whether actual source changed.",
+    "start": "    conversation.close();",
+    "end": "\n  }\n}"
+  },
+  {
+    "source": "src/client.ts",
+    "explanation": "The browser renders actual source with Python syntax colours and derives Verified fix only when the source changed and all independent checks passed.",
+    "start": "function showWorkspace(data: any) {",
+    "end": "async function configure()"
+  }
+]

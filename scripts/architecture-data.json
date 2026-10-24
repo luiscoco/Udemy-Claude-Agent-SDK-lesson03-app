@@ -72,5 +72,137 @@
       0,
       "13. Show before/after and verified outcome"
     ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "source": "src/agent.ts",
+      "firstLine": 8,
+      "lastLine": 8,
+      "code": "export const DEFAULT_PROMPT = \"Review utils.py for bugs that would cause crashes. Fix any issues you find.\";",
+      "explanation": "The default prompt names the Python target and asks for crash fixes. The same task appears in the lab before the user runs it.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 2,
+      "source": "src/agent.ts",
+      "firstLine": 97,
+      "lastLine": 99,
+      "code": "const before = await workspaceState(true);\nif (!before.checks.available) throw new Error(before.checks.error);\nemit({ type: \"workspace\", stage: \"before\", ...before, changed: false });",
+      "explanation": "workspaceState(true) restores the disposable buggy copy and runs baseline checks. The host emits this actual source and its check results before invoking the SDK.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 3,
+      "source": "src/agent.ts",
+      "firstLine": 102,
+      "lastLine": 102,
+      "code": "const conversation = query({ prompt, options: lessonOptions(abortController) });",
+      "explanation": "One query receives the repair task and edit options. Read, Edit, Glob and acceptEdits are configured in lessonOptions rather than a manual tool loop.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 4,
+      "source": "src/agent.ts",
+      "firstLine": 57,
+      "lastLine": 60,
+      "code": "model: MODEL, cwd: WORKSPACE,\ntools: [\"Read\", \"Edit\", \"Glob\"],\nallowedTools: [\"Read\", \"Edit\", \"Glob\"],\npermissionMode: \"acceptEdits\",",
+      "explanation": "These option properties supply the task environment and tool definitions to the SDK. Claude API transport is performed internally by the SDK.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 5,
+      "source": "src/agent.ts",
+      "firstLine": 82,
+      "lastLine": 85,
+      "code": "if (block.type === \"tool_use\") {\n  const input = block.input as { pattern?: string; file_path?: string };\n  events.push({ type: \"tool\", name: block.name, pattern: input.file_path ? basename(input.file_path) : input.pattern || \"\" });\n}",
+      "explanation": "Actual assistant tool_use blocks are projected into tool events. The tool name and safe filename/pattern come from the observed request, not a fixed replay.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 6,
+      "source": "src/agent.ts",
+      "firstLine": 46,
+      "lastLine": 48,
+      "code": "if (name === \"Read\" || name === \"Edit\") {\n  return typeof input.file_path === \"string\" && resolve(WORKSPACE, input.file_path).toLowerCase() === TARGET.toLowerCase();\n}",
+      "explanation": "The path guard permits Read and Edit only on the disposable target. The SDK executes the built-in Read operation; this excerpt shows the application guard around it.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 7,
+      "source": "src/agent.ts",
+      "firstLine": 104,
+      "lastLine": 109,
+      "code": "for await (const message of conversation) {\n  for (const event of projectMessage(message)) {\n    if (event.type === \"result\") gotResult = true;\n    emit(event);\n  }\n}",
+      "explanation": "The SDK sends tool observations to Claude internally. The host continues consuming the same conversation and only emits its chosen projection; it has no custom tool-result sender.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 8,
+      "source": "src/agent.ts",
+      "firstLine": 82,
+      "lastLine": 85,
+      "code": "if (block.type === \"tool_use\") {\n  const input = block.input as { pattern?: string; file_path?: string };\n  events.push({ type: \"tool\", name: block.name, pattern: input.file_path ? basename(input.file_path) : input.pattern || \"\" });\n}",
+      "explanation": "An Edit request is observed through this tool_use branch just like a Read request. The actual tool name determines what happened; the app does not invent an Edit response.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 9,
+      "source": "src/agent.ts",
+      "firstLine": 63,
+      "lastLine": 65,
+      "code": "if (input.hook_event_name !== \"PreToolUse\") return {};\nif (toolPathAllowed(input.tool_name, input.tool_input as Record<string, unknown>)) return {};\nreturn { hookSpecificOutput: { hookEventName: \"PreToolUse\", permissionDecision: \"deny\", permissionDecisionReason: \"This lesson permits only Read/Edit on its utils.py and Glob in the demo directory.\" } };",
+      "explanation": "The pre-tool hook accepts calls that pass toolPathAllowed and denies other targets. The SDK applies permitted edits to the working copy; the immutable fixture is not edited.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 10,
+      "source": "src/agent.ts",
+      "firstLine": 104,
+      "lastLine": 110,
+      "code": "for await (const message of conversation) {\n  for (const event of projectMessage(message)) {\n    if (event.type === \"result\") gotResult = true;\n    emit(event);\n  }\n}\nif (!gotResult && !abortController.signal.aborted) throw new Error(\"The SDK ended without a result message.\");",
+      "explanation": "The host drains the same SDK iterator while the model can repeat inspections and edits. The final-result flag and completion check distinguish a finished run from missing evidence.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 11,
+      "source": "src/agent.ts",
+      "firstLine": 89,
+      "lastLine": 93,
+      "code": "if (message.type === \"result\") {\n  const success = message.subtype === \"success\" && !message.is_error;\n  return [{ type: \"result\", status: success ? \"success\" : message.subtype === \"success\" ? \"error\" : message.subtype,\n    text: message.subtype === \"success\" ? message.result : message.errors.join(\"\\n\"), sessionId: message.session_id, costUsd: message.total_cost_usd, turns: message.num_turns }];\n}",
+      "explanation": "The result projection checks both subtype and is_error, preserves error variants, and exposes the actual session, estimated cost and turn count.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 12,
+      "source": "src/agent.ts",
+      "firstLine": 112,
+      "lastLine": 114,
+      "code": "conversation.close();\nconst after = await workspaceState();\nemit({ type: \"workspace\", stage: \"after\", ...after, changed: after.source !== before.source });",
+      "explanation": "After closing the SDK query, the host reads the resulting file and runs independent checks through workspaceState(). The after event records whether actual source changed.",
+      "language": "typescript",
+      "sourceSHA256": "6735106bc7bf6a624518b4eb872b0a736598128644e298efd1bbe4f1a7eded4d"
+    },
+    {
+      "number": 13,
+      "source": "src/client.ts",
+      "firstLine": 11,
+      "lastLine": 20,
+      "code": "function showWorkspace(data: any) {\n  const id = data.stage === \"after\" ? \"after\" : \"before\";\n  $(id).textContent = data.source; Prism.highlightElement($(id));\n  $(id + \"-checks\").textContent = `${data.checks.passed}/${data.checks.total} checks passed`;\n  if (id === \"after\") {\n    $(\"verdict\").textContent = data.checks.available && data.checks.passed === data.checks.total && data.changed ? \"Verified fix\" : \"Not verified\";\n    $(\"checks\").replaceChildren();\n    for (const item of data.checks.cases) { const li = document.createElement(\"li\"); li.textContent = `${item.passed ? \"PASS\" : \"FAIL\"} \u00b7 ${item.label}`; $(\"checks\").append(li); }\n  }\n}",
+      "explanation": "The browser renders actual source with Python syntax colours and derives Verified fix only when the source changed and all independent checks passed.",
+      "language": "typescript",
+      "sourceSHA256": "6c3245e3193831fc722ff450ce89da79bcb38ab3e5e55fd77f176b32cb82bb33"
+    }
   ]
 }
